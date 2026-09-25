@@ -704,6 +704,24 @@ table.tabla{width:100%;border-collapse:collapse;font-size:13px}
   .lt-item>:last-child{grid-column:3}
 }
 
+/* ================================================================
+   Finanzas: flujo de fondos
+   ================================================================ */
+table.flujo th,table.flujo td{text-align:right;white-space:nowrap;font-variant-numeric:lining-nums tabular-nums}
+table.flujo th:first-child,table.flujo td:first-child{text-align:left;position:sticky;left:0;background:var(--blanco);z-index:1;min-width:170px;box-shadow:1px 0 0 var(--borde-2)}
+table.flujo th:first-child{background:var(--oro-tenue)}
+table.flujo th small{display:block;font-size:9.5px;letter-spacing:.6px;font-weight:600;color:var(--texto-3);text-transform:none;margin-top:2px}
+table.flujo th.proy{background:#F9EEE7;color:var(--oro-osc)}
+table.flujo td.proy{background:#FDF8F5;font-style:italic;color:var(--texto-2)}
+table.flujo tr.sub td:first-child{padding-left:28px;color:var(--texto-2)}
+table.flujo tr.grupo td{background:var(--crema);font-size:10.5px;letter-spacing:1.3px;text-transform:uppercase;font-weight:700;color:var(--texto-3);text-align:left;padding:8px 16px}
+table.flujo tr.tot td{font-weight:700;border-top:1px solid var(--borde)}
+table.flujo tr.neto td{font-weight:700;background:var(--oro-tenue)}
+table.flujo tr.neto td:first-child{background:var(--oro-tenue)}
+table.flujo tr.saldo td{font-family:var(--f-titulo);font-size:17px;font-weight:600;background:#FBF9F6}
+table.flujo tr.saldo td:first-child{font-family:var(--f-cuerpo);font-size:13px;background:#FBF9F6}
+table.flujo tr.saldo td.proy,table.flujo tr.neto td.proy{font-style:italic}
+
 </style>
 </head>
 <body>
@@ -972,7 +990,8 @@ const ESTADOS_ASIS = {
 const CATEGORIAS_SERVICIO = ['Facial','Corporal','Depilación','Uñas','Masajes','Cejas y pestañas'];
 const MEDIOS_PAGO = ['Efectivo','Transferencia','Débito','Crédito'];
 const CAT_INGRESO = ['Servicios','Venta de productos','Packs de tratamientos','Otros ingresos'];
-const CAT_EGRESO  = ['Proveedores','Sueldos','Alquiler','Servicios (UTE, ANTEL, OSE)','Impuestos y aportes','Publicidad','Otros gastos'];
+const CAT_EGRESO  = ['Proveedores','Sueldos','Alquiler','Servicios (UTE, ANTEL, OSE)','Impuestos y aportes','Publicidad','Otros gastos','Retiros de la dueña'];
+const CAT_RETIRO  = 'Retiros de la dueña';   // sale de la caja, pero NO es un gasto del negocio (no resta en el resultado)
 const CONCEPTOS_PAGO = ['Sueldo','Adelanto','Aguinaldo','Salario vacacional'];
 const COMO_CONOCIO = ['Instagram','Recomendación','Facebook','Google','Pasó por el local','Otro'];
 const TIPOS_PIEL = ['Normal','Seca','Grasa','Mixta','Sensible'];
@@ -999,7 +1018,8 @@ const CONFIG_INICIAL = {
     diasLicencia: 20,            // por año trabajado
     divisorAguinaldo: 12         // aguinaldo = total cobrado / 12
   },
-  diasInactiva: 90               // clientas que no vienen hace más de 90 días
+  diasInactiva: 90,              // clientas que no vienen hace más de 90 días
+  saldoInicial: 120000           // caja y bancos antes del primer movimiento (se ajusta desde Finanzas → Flujo de fondos)
 };
 
 
@@ -1180,7 +1200,7 @@ const Store = {
   cargar(){
     let d = null;
     try { d = JSON.parse(localStorage.getItem(CLAVE_GUARDADO) || 'null'); } catch (e) { d = null; }
-    if (!d || d.version !== 1) d = crearDatosEjemplo(hoy());
+    if (!d || d.version !== 2) d = crearDatosEjemplo(hoy());
     this.data = d;
     moverFechas(d, hoy());    // la demo siempre "vive" en el día de hoy
     this.guardar();
@@ -1306,7 +1326,7 @@ function crearDatosEjemplo(h){
   let sec = 0; const id = p => p + (++sec);
 
   const d = {
-    version: 1, base: h, seq: 5000,
+    version: 2, base: h, seq: 5000,
     config: JSON.parse(JSON.stringify(CONFIG_INICIAL)),
     profesionales: [
       { id:'p1', nombre:'Carolina Méndez', rol:'Dueña · Cosmiatra' },
@@ -1553,7 +1573,8 @@ function crearDatosEjemplo(h){
       [12,'Servicios (UTE, ANTEL, OSE)','UTE · energía eléctrica',ent(3000, 4600),'Débito'],
       [12,'Servicios (UTE, ANTEL, OSE)','ANTEL · internet y teléfono',1590,'Débito'],
       [15,'Servicios (UTE, ANTEL, OSE)','OSE · agua',ent(700, 950),'Débito'],
-      [18,'Impuestos y aportes','Aportes BPS y FONASA',9800,'Transferencia']
+      [18,'Impuestos y aportes','Aportes BPS y FONASA',9800,'Transferencia'],
+      [28,'Retiros de la dueña','Retiro de Carolina',ent(10, 12) * 10000 + ent(0, 1) * 5000,'Transferencia']
     ].forEach(([n, cat, concepto, monto, medio]) => { if (dia(n) <= h) d.movs.push({ id:id('m'), fecha:dia(n), tipo:'egr', cat, concepto, monto, medio }); });
   }
 
@@ -2665,8 +2686,11 @@ RENDER.finanzas = function(){
     btnExportar('exportarFinanzas') +
     `<button class="btn btn-linea" onclick="formMov('egr')">${ico('gasto')} Registrar gasto</button>
      <button class="btn btn-oro" onclick="formMov('ing')">${ico('dinero')} Registrar cobro</button>`);
+  if (FIN.modo === 'flujo'){ $('#vista').innerHTML = pestanasFin() + htmlFlujo(); return; }
   const [a, b] = rangoFin();
-  const enRango = D().movs.filter(m => m.fecha >= a && m.fecha <= b);
+  const conRetiros = D().movs.filter(m => m.fecha >= a && m.fecha <= b);
+  const retiros = conRetiros.filter(m => m.cat === CAT_RETIRO).reduce((s, m) => s + m.monto, 0);
+  const enRango = conRetiros.filter(m => m.cat !== CAT_RETIRO);   // los retiros de la dueña no son gastos del negocio
   const ing = sumaMovs(enRango, 'ing'), egr = sumaMovs(enRango, 'egr'), res = ing - egr;
   const cobrosServ = enRango.filter(m => m.tipo === 'ing' && m.cat === 'Servicios');
   const ticket = cobrosServ.length ? cobrosServ.reduce((s, m) => s + m.monto, 0) / cobrosServ.length : 0;
@@ -2687,14 +2711,14 @@ RENDER.finanzas = function(){
     <div class="avance"><span style="width:${Math.max(2, v / max * 100)}%;${color ? 'background:' + color : ''}"></span></div></div>`;
 
   const lista = movsFiltrados();
-  $('#vista').innerHTML = `<div class="ag-herr">
+  $('#vista').innerHTML = pestanasFin() + `<div class="ag-herr">
       <div class="fila"><div class="segmento">${[['dia','Día'],['mes','Mes'],['anio','Año']].map(([k, t]) => `<button class="${FIN.vista === k ? 'on' : ''}" onclick="FIN.vista='${k}'; FIN.lim=50; RENDER.finanzas()">${t}</button>`).join('')}</div>
         <div class="navfecha"><button class="icon-btn" onclick="moverFin(-1)" aria-label="Anterior">${ico('izq')}</button><span class="lbl">${etiquetaFin()}</span>
           <button class="icon-btn" onclick="moverFin(1)" aria-label="Siguiente">${ico('der')}</button></div>
         <button class="btn btn-linea btn-sm" onclick="FIN.fecha=hoy(); RENDER.finanzas()">Hoy</button></div></div>
     <div class="grid g-4 revelar">
       <div class="kpi"><div class="kpi-l">${ico('dinero')} Ingresos</div><div class="kpi-v pos">${pesos(ing)}</div><div class="kpi-d">${enRango.filter(m => m.tipo === 'ing').length} movimientos</div></div>
-      <div class="kpi"><div class="kpi-l">${ico('gasto')} Egresos</div><div class="kpi-v">${pesos(egr)}</div><div class="kpi-d">${enRango.filter(m => m.tipo === 'egr').length} movimientos</div></div>
+      <div class="kpi"><div class="kpi-l">${ico('gasto')} Egresos</div><div class="kpi-v">${pesos(egr)}</div><div class="kpi-d">${enRango.filter(m => m.tipo === 'egr').length} movimientos${retiros ? ' · aparte, retiros ' + pesos(retiros) : ''}</div></div>
       <div class="kpi ${res < 0 ? 'alerta' : ''}"><div class="kpi-l">${ico('finanzas')} Resultado</div><div class="kpi-v ${res >= 0 ? 'pos' : ''}">${pesos(res)}</div><div class="kpi-d">${ing ? 'margen ' + pct(res / ing * 100) : '—'}</div></div>
       <div class="kpi"><div class="kpi-l">${ico('estrella')} Ticket promedio</div><div class="kpi-v">${pesos(ticket)}</div><div class="kpi-d">por servicio cobrado</div></div>
     </div>
@@ -2739,7 +2763,7 @@ function graficoFin(){
   let meses = [];
   if (FIN.vista === 'anio'){ const y = FIN.fecha.slice(0, 4); for (let m = 1; m <= 12; m++) meses.push(y + '-' + p2(m)); }
   else for (let k = 5; k >= 0; k--) meses.push(mesClave(sumarMeses(FIN.fecha, -k)));
-  const datos = meses.map(mk => { const l = D().movs.filter(m => mesClave(m.fecha) === mk); return { mk, ing:sumaMovs(l, 'ing'), egr:sumaMovs(l, 'egr') }; });
+  const datos = meses.map(mk => { const l = D().movs.filter(m => mesClave(m.fecha) === mk && m.cat !== CAT_RETIRO); return { mk, ing:sumaMovs(l, 'ing'), egr:sumaMovs(l, 'egr') }; });
   const max = Math.max(1, ...datos.map(x => Math.max(x.ing, x.egr))) * 1.12;
   const W = 640, H = 240, izq = 54, abajo = 26, arr = 10, ancho = (W - izq - 6) / datos.length, bw = Math.min(26, ancho * .3);
   const y = v => arr + (H - arr - abajo) * (1 - v / max);
@@ -2802,8 +2826,150 @@ async function eliminarMov(id){
   borrarMov(id); guardar(); cerrarModal(); refrescar(); avisar('Movimiento eliminado', 'borrar');
 }
 function exportarFinanzas(){
+  if (FIN.modo === 'flujo') return exportarFlujo();
   exportarCSV('Finanzas ' + etiquetaFin(), ['Fecha','Tipo','Categoría','Concepto','Clienta','Medio de pago','Monto'],
     movsFiltrados().map(m => [fCorta(m.fecha), m.tipo === 'ing' ? 'Ingreso' : 'Egreso', m.cat, m.concepto, m.cli && cliente(m.cli) ? cliente(m.cli).nombre : '', m.medio, (m.tipo === 'ing' ? 1 : -1) * m.monto]));
+}
+
+
+/* ===== js/12-flujo.js ===== */
+/* =====================================================================
+   FINANZAS → FLUJO DE FONDOS
+   Mes a mes: saldo inicial + ingresos − egresos = saldo final.
+   Últimos 6 meses (reales) + próximos 3 meses (proyectados).
+   Proyección ORIENTATIVA: promedio de los últimos 3 meses cerrados, más los
+   turnos ya agendados, el sueldo y el aguinaldo en el mes que corresponde.
+   ===================================================================== */
+function pestanasFin(){
+  const m = FIN.modo || 'resumen';
+  return `<div class="pestanas">
+    <button class="pestana ${m === 'resumen' ? 'on' : ''}" onclick="FIN.modo='resumen'; RENDER.finanzas(); activarRevelado()">${ico('finanzas')} Resumen y movimientos</button>
+    <button class="pestana ${m === 'flujo' ? 'on' : ''}" onclick="FIN.modo='flujo'; RENDER.finanzas(); activarRevelado()">${ico('dinero')} Flujo de fondos</button></div>`;
+}
+const saldoInicialCaja = () => { const s = D().config.saldoInicial; return typeof s === 'number' ? s : 120000; };
+const signo = m => m.tipo === 'ing' ? m.monto : -m.monto;
+function saldoAl(fecha){ return saldoInicialCaja() + D().movs.reduce((s, m) => s + (m.fecha < fecha ? signo(m) : 0), 0); }
+
+function calcFlujo(){
+  const h = hoy(), mesHoy = inicioMes(h), f = D().func;
+  const porCat = (mk, tipo) => { const o = {}; D().movs.forEach(m => { if (m.tipo === tipo && mesClave(m.fecha) === mk) o[m.cat] = (o[m.cat] || 0) + m.monto; }); return o; };
+  const cols = [];
+  // Reales: 5 meses cerrados + el mes en curso
+  for (let k = 5; k >= 0; k--){
+    const ini = sumarMeses(mesHoy, -k), mk = mesClave(ini);
+    cols.push({ ini, mk, tipo: k === 0 ? 'curso' : 'real', ing:porCat(mk, 'ing'), egr:porCat(mk, 'egr') });
+  }
+  // Promedio de los últimos 3 meses cerrados, por categoría
+  const cerrados = cols.slice(2, 5), prom = tipo => { const o = {}; cerrados.forEach(c => Object.keys(c[tipo]).forEach(k => o[k] = (o[k] || 0) + c[tipo][k] / 3)); return o; };
+  const pIng = prom('ing'), pEgr = prom('egr'), ag = calcAguinaldo();
+  const sueldoBase = f.modalidad === 'mensual' ? Number(f.sueldo) : Number(f.jornal) * 24;
+  for (let k = 1; k <= 3; k++){
+    const ini = sumarMeses(mesHoy, k), mk = mesClave(ini);
+    const ing = {}, egr = {};
+    Object.keys(pIng).forEach(c => ing[c] = Math.round(pIng[c]));
+    const agendado = D().turnos.filter(t => mesClave(t.fecha) === mk && (t.estado === 'pendiente' || t.estado === 'confirmado')).reduce((s, t) => s + t.precio, 0);
+    ing['Servicios'] = Math.max(ing['Servicios'] || 0, agendado);
+    Object.keys(pEgr).forEach(c => egr[c] = Math.round(pEgr[c]));
+    egr['Sueldos'] = sueldoBase + (mesClave(ag.pago) === mk ? ag.estimado : 0);
+    cols.push({ ini, mk, tipo:'proy', ing, egr, agendado, aguinaldo: mesClave(ag.pago) === mk ? ag.estimado : 0 });
+  }
+  // Saldos encadenados
+  let saldo = saldoAl(cols[0].ini);
+  cols.forEach(c => {
+    c.tIng = Object.values(c.ing).reduce((s, v) => s + v, 0);
+    c.tEgr = Object.values(c.egr).reduce((s, v) => s + v, 0);
+    c.neto = c.tIng - c.tEgr; c.saldoIni = saldo; saldo += c.neto; c.saldoFin = saldo;
+  });
+  return cols;
+}
+
+function htmlFlujo(){
+  const cols = calcFlujo(), h = hoy(), cur = cols[5], proy = cols.slice(6);
+  const saldoHoy = saldoAl(sumarDias(h, 1));
+  const peor = proy.reduce((a, c) => c.neto < a.neto ? c : a, proy[0]);
+  const conAg = proy.find(c => c.aguinaldo);
+  const nomMes = c => MESES_C[aFecha(c.ini).getMonth()] + (c.ini.slice(0, 4) !== h.slice(0, 4) ? ' ' + c.ini.slice(2, 4) : '');
+  const filasCat = (tipo, lista) => lista.filter(cat => cols.some(c => c[tipo][cat])).map(cat =>
+    `<tr class="sub"><td>${esc(cat)}</td>${cols.map(c => `<td class="${c.tipo === 'proy' ? 'proy' : ''}">${c[tipo][cat] ? pesos(c[tipo][cat]) : '<span class="muted">—</span>'}</td>`).join('')}</tr>`).join('');
+  const fila = (clase, t, fn) => `<tr class="${clase}"><td>${t}</td>${cols.map(c => `<td class="${c.tipo === 'proy' ? 'proy' : ''}">${fn(c)}</td>`).join('')}</tr>`;
+
+  return `<div class="grid g-4 revelar">
+      <div class="kpi"><div class="kpi-l">${ico('dinero')} Saldo hoy</div><div class="kpi-v">${pesos(saldoHoy)}</div><div class="kpi-d">caja y bancos</div></div>
+      <div class="kpi"><div class="kpi-l">${ico('finanzas')} Flujo del mes</div><div class="kpi-v ${cur.neto >= 0 ? 'pos' : ''}">${pesos(cur.neto)}</div><div class="kpi-d">${MESES[aFecha(cur.ini).getMonth()]}, a hoy</div></div>
+      <div class="kpi"><div class="kpi-l">${ico('agenda')} Saldo en 3 meses</div><div class="kpi-v">${pesos(proy[2].saldoFin)}</div><div class="kpi-d">proyectado a fin de ${MESES[aFecha(proy[2].ini).getMonth()]}</div></div>
+      <div class="kpi ${peor.neto < 0 ? 'alerta' : ''}"><div class="kpi-l">${ico('alerta')} Mes más ajustado</div><div class="kpi-v" style="text-transform:capitalize">${MESES[aFecha(peor.ini).getMonth()]}</div>
+        <div class="kpi-d">flujo proyectado ${pesos(peor.neto)}${peor.aguinaldo ? ' (paga aguinaldo)' : ''}</div></div>
+    </div>
+    <div class="card mt revelar"><div class="card-cab"><div class="card-t">Saldo mes a mes<small>Barras: lo que entra menos lo que sale · línea: saldo a fin de mes</small></div>
+      <div class="graf-ley"><span><i style="background:var(--oro)"></i>Flujo del mes</span><span><i style="background:var(--grafito);height:2px;vertical-align:3px"></i>Saldo</span><span><i style="background:var(--oro-suave);border:1px dashed var(--oro)"></i>Proyectado</span></div></div>
+      ${graficoFlujo(cols, nomMes)}</div>
+    <div class="card-cab" style="margin-top:28px"><div class="card-t">Flujo de fondos<small>Últimos 6 meses reales y los próximos 3 proyectados</small></div>
+      <button class="btn btn-linea btn-sm" onclick="formSaldoCaja()">${ico('editar')} Ajustar saldo de hoy</button></div>
+    <div class="tabla-caja revelar"><div class="tabla-scroll"><table class="tabla flujo">
+      <thead><tr><th>Concepto</th>${cols.map(c => `<th class="${c.tipo === 'proy' ? 'proy' : ''}">${nomMes(c)}<small>${c.tipo === 'proy' ? 'Proyectado' : c.tipo === 'curso' ? 'En curso' : 'Real'}</small></th>`).join('')}</tr></thead>
+      <tbody>
+        ${fila('saldo', 'Saldo al inicio', c => pesos(c.saldoIni))}
+        <tr class="grupo"><td colspan="${cols.length + 1}">Ingresos</td></tr>
+        ${filasCat('ing', CAT_INGRESO)}
+        ${fila('tot', 'Total ingresos', c => `<span class="pos">${pesos(c.tIng)}</span>`)}
+        <tr class="grupo"><td colspan="${cols.length + 1}">Egresos</td></tr>
+        ${filasCat('egr', CAT_EGRESO)}
+        ${fila('tot', 'Total egresos', c => `<span class="neg">${pesos(c.tEgr)}</span>`)}
+        ${fila('neto', 'Flujo del mes', c => `<span class="${c.neto >= 0 ? 'pos' : 'neg'}">${c.neto >= 0 ? '+' : '−'} ${pesos(Math.abs(c.neto))}</span>`)}
+        ${fila('saldo', 'Saldo al final', c => pesos(c.saldoFin))}
+      </tbody></table></div></div>
+    <div class="caja-info mt">${ico('info')}<div><b>Cómo se proyecta:</b> ingresos y gastos con el promedio de los últimos 3 meses cerrados; los servicios nunca por debajo de los turnos ya agendados;
+      el sueldo de ${esc(primerNombre(D().func.nombre))} cada mes${conAg ? ` y el <b>aguinaldo (${pesos(conAg.aguinaldo)})</b> en ${MESES[aFecha(conAg.ini).getMonth()]}` : ''}. El mes en curso muestra lo real hasta hoy.</div></div>
+    <div class="orientativo">Proyección orientativa: sirve para anticipar meses ajustados, no reemplaza el control del banco.</div>`;
+}
+
+function graficoFlujo(cols, nomMes){
+  const W = 720, H = 250, izq = 64, abajo = 28, arr = 14, n = cols.length, ancho = (W - izq - 8) / n, bw = Math.min(30, ancho * .42);
+  const vals = cols.map(c => c.neto).concat(cols.map(c => c.saldoFin), [0]);
+  const max = Math.max(...vals) * 1.1, min = Math.min(0, ...vals) * 1.1 || 0;
+  const y = v => arr + (H - arr - abajo) * (max - v) / (max - min);
+  let g = '';
+  for (let i = 0; i <= 4; i++){ const v = min + (max - min) * i / 4; g += `<line x1="${izq}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="#F0E9E1"/><text x="${izq - 8}" y="${y(v) + 4}" text-anchor="end">${Math.abs(v) >= 1000 ? Math.round(v / 1000) + ' k' : Math.round(v)}</text>`; }
+  g += `<line x1="${izq}" x2="${W}" y1="${y(0)}" y2="${y(0)}" stroke="#D9CFC4"/>`;
+  const cx = i => izq + ancho * i + ancho / 2;
+  cols.forEach((c, i) => {
+    const pr = c.tipo === 'proy', top = y(Math.max(0, c.neto)), alto = Math.abs(y(c.neto) - y(0));
+    g += `<g class="mes"><title>${nomMes(c)}${pr ? ' (proyectado)' : ''}: flujo ${pesos(c.neto)} · saldo ${pesos(c.saldoFin)}</title>
+      <rect x="${cx(i) - bw / 2}" y="${top}" width="${bw}" height="${Math.max(1, alto)}" rx="4" fill="${c.neto < 0 ? 'var(--mal)' : pr ? 'var(--oro-suave)' : 'url(#gradOroF)'}" ${pr ? 'stroke="var(--oro)" stroke-dasharray="3 3"' : ''}/>
+      <text x="${cx(i)}" y="${H - 8}" text-anchor="middle" ${c.tipo === 'curso' ? 'style="fill:var(--grafito);font-weight:700"' : ''}>${nomMes(c)}</text></g>`;
+  });
+  const pts = cols.map((c, i) => cx(i) + ',' + y(c.saldoFin));
+  g += `<polyline points="${pts.slice(0, 6).join(' ')}" fill="none" stroke="var(--grafito)" stroke-width="2"/>
+    <polyline points="${pts.slice(5).join(' ')}" fill="none" stroke="var(--grafito)" stroke-width="2" stroke-dasharray="5 5" opacity=".6"/>
+    ${cols.map((c, i) => `<circle cx="${cx(i)}" cy="${y(c.saldoFin)}" r="3.5" fill="${c.tipo === 'proy' ? '#fff' : 'var(--grafito)'}" stroke="var(--grafito)" stroke-width="1.5"/>`).join('')}`;
+  return `<svg class="graf" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfico del flujo de fondos y el saldo mes a mes">
+    <defs><linearGradient id="gradOroF" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D4A58C"/><stop offset="1" stop-color="#A8705A"/></linearGradient></defs>${g}</svg>`;
+}
+
+function formSaldoCaja(){
+  const actual = saldoAl(sumarDias(hoy(), 1));
+  abrirModal({
+    titulo: 'Saldo de caja y bancos', sub: 'Poné cuánta plata hay hoy entre efectivo y cuentas: el flujo se acomoda solo.',
+    cuerpo: `<form class="form" id="f-saldo" onsubmit="guardarSaldoCaja(); return false">
+      ${campo('Saldo de hoy', inp('saldo', Math.round(actual), 'number', 'step="100"'), { ancho:true, ayuda:'Según los movimientos cargados, hoy deberías tener ' + pesos(actual) + '.' })}</form>`,
+    pie: `<button class="btn btn-linea" onclick="cerrarModal()">Cancelar</button><button class="btn btn-oro" onclick="guardarSaldoCaja()">Guardar</button>`
+  });
+}
+function guardarSaldoCaja(){
+  const v = Number(leerForm($('#f-saldo')).saldo);
+  if (isNaN(v)) return avisar('Poné un monto', 'alerta');
+  D().config.saldoInicial = saldoInicialCaja() + (v - saldoAl(sumarDias(hoy(), 1)));
+  guardar(); cerrarModal(); refrescar(); avisar('Saldo actualizado: ' + pesos(v), 'dinero');
+}
+function exportarFlujo(){
+  const cols = calcFlujo(), filas = [];
+  const cats = (tipo, lista) => lista.filter(cat => cols.some(c => c[tipo][cat])).forEach(cat => filas.push(['  ' + cat].concat(cols.map(c => Math.round(c[tipo][cat] || 0)))));
+  filas.push(['Saldo al inicio'].concat(cols.map(c => Math.round(c.saldoIni))));
+  filas.push(['INGRESOS']); cats('ing', CAT_INGRESO); filas.push(['Total ingresos'].concat(cols.map(c => Math.round(c.tIng))));
+  filas.push(['EGRESOS']); cats('egr', CAT_EGRESO); filas.push(['Total egresos'].concat(cols.map(c => Math.round(c.tEgr))));
+  filas.push(['Flujo del mes'].concat(cols.map(c => Math.round(c.neto))));
+  filas.push(['Saldo al final'].concat(cols.map(c => Math.round(c.saldoFin))));
+  exportarCSV('Flujo de fondos', ['Concepto'].concat(cols.map(c => fMes(c.ini) + (c.tipo === 'proy' ? ' (proyectado)' : c.tipo === 'curso' ? ' (en curso)' : ''))), filas);
 }
 
 
