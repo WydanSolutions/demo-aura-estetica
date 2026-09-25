@@ -722,6 +722,9 @@ table.flujo tr.saldo td{font-family:var(--f-titulo);font-size:17px;font-weight:6
 table.flujo tr.saldo td:first-child{font-family:var(--f-cuerpo);font-size:13px;background:#FBF9F6}
 table.flujo tr.saldo td.proy,table.flujo tr.neto td.proy{font-style:italic}
 
+/* Abierta desde la página comercial (?web=1): sin la presentación de Wydan */
+body.modo-web .bq-volver, body.modo-web .lat-inicio{display:none}
+
 </style>
 </head>
 <body>
@@ -3690,7 +3693,10 @@ window.addEventListener('afterprint', () => { $('#impresion').innerHTML = ''; })
 
 Store.cargar();
 armarLateral();
-mostrarBienvenida();   // la demo siempre abre con la presentación de Wydan
+// Desde la página comercial de Wydan (link con ?web=1) se entra directo al bloqueo, sin la presentación.
+// El link que se le manda a cada cliente (sin ?web=1) abre con la presentación de Wydan.
+const DESDE_WEB = new URLSearchParams(location.search).has("web");
+if (DESDE_WEB){ document.body.classList.add("modo-web"); mostrarBloqueo(); } else mostrarBienvenida();
 
 </script>
 </body>
