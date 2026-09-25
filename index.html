@@ -64,7 +64,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
 body{font-family:var(--f-cuerpo);font-size:14px;line-height:1.5;color:var(--grafito);background:var(--crema);
-  -webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden}
+  -webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden;font-variant-numeric:lining-nums}
 button{font:inherit;color:inherit;cursor:pointer;background:none;border:none}
 input,select,textarea{font:inherit;color:inherit}
 a{color:var(--oro-osc)}
@@ -116,7 +116,7 @@ svg.ico{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-wi
 .card-cab{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px}
 .card-t{font-family:var(--f-titulo);font-size:22px;font-weight:600;line-height:1.15;color:var(--grafito)}
 .card-t small{display:block;font-family:var(--f-cuerpo);font-size:11.5px;font-weight:500;color:var(--texto-3);margin-top:3px;letter-spacing:.2px}
-.card-num{font-family:var(--f-cuerpo);font-size:11px;font-weight:700;background:var(--oro-suave);color:var(--oro-osc);border-radius:20px;padding:2px 9px;margin-left:8px;vertical-align:middle}
+.card-num{font-family:var(--f-cuerpo);font-size:11px;font-weight:700;background:var(--oro-suave);color:var(--oro-osc);border-radius:20px;padding:2px 9px;margin-left:8px;vertical-align:middle;white-space:nowrap}
 .vacio{padding:26px 10px;text-align:center;color:var(--texto-3);font-size:13px}
 .vacio svg.ico{width:28px;height:28px;display:block;margin:0 auto 8px;color:var(--oro-claro);stroke-width:1.3}
 
@@ -163,7 +163,7 @@ svg.ico{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-wi
 .muted{color:var(--texto-3)}
 .t2{color:var(--texto-2)}
 .fuerte{font-weight:600}
-.num{font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:lining-nums tabular-nums}
 .derecha{text-align:right}
 .pos{color:var(--ok)} .neg{color:var(--mal)}
 
@@ -491,7 +491,8 @@ table.tabla{width:100%;border-collapse:collapse;font-size:13px}
    ================================================================ */
 .ag-herr{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
 .ag-caja{background:var(--blanco);border:1px solid var(--borde-2);border-radius:var(--r);box-shadow:var(--sombra);overflow:hidden}
-.ag-scroll{overflow-x:auto}
+.ag-scroll{overflow-x:auto;overflow-y:hidden}
+.ag-horas,.ag-col{margin:10px 0 6px}
 .ag-grilla{display:grid;position:relative;min-width:100%}
 .ag-cab{position:sticky;top:0;z-index:3;background:var(--oro-tenue);border-bottom:1px solid var(--borde-2);padding:11px 8px;text-align:center;font-size:12px;font-weight:600;color:var(--texto-2)}
 .ag-cab b{display:block;font-family:var(--f-titulo);font-size:22px;color:var(--grafito);line-height:1.1}
@@ -510,7 +511,7 @@ table.tabla{width:100%;border-collapse:collapse;font-size:13px}
   background:var(--prof-1-bg);border-left:3px solid var(--prof-1);transition:box-shadow .15s,transform .15s}
 .turno:hover{box-shadow:0 6px 16px rgba(45,46,51,.14);z-index:4;transform:translateY(-1px)}
 .turno.p2{background:var(--prof-2-bg);border-left-color:var(--prof-2)}
-.turno .tn{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;gap:4px;align-items:center}
+.turno .tn{padding-right:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;gap:4px;align-items:center}
 .turno .ts{color:var(--texto-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .turno .tst{position:absolute;right:6px;top:6px;width:8px;height:8px;border-radius:50%}
 .turno.st-cancelado,.turno.st-noasistio{opacity:.5;text-decoration:line-through}
@@ -1301,6 +1302,7 @@ function crearDatosEjemplo(h){
   const ent = (a, b) => a + Math.floor(R() * (b - a + 1));
   const elegir = a => a[Math.floor(R() * a.length)];
   const F = n => sumarDias(h, n);
+  const habil = n => diaSemana(F(n)) === 0 ? F(n + 1) : F(n);   // nunca domingo
   let sec = 0; const id = p => p + (++sec);
 
   const d = {
@@ -1466,8 +1468,8 @@ function crearDatosEjemplo(h){
     d.tratamientos.push(t);
   });
   // próximas sesiones ya agendadas
-  agregarTurno({ fecha:F(3), hora:'18:00', dur:60, cli:'c5', serv:'s6', prof:'p2', estado:'pendiente', precio:1700, rec:false, nota:'Sesión 7 de 10' });
-  agregarTurno({ fecha:F(2), hora:'18:00', dur:45, cli:'c9', serv:'s3', prof:'p1', estado:'confirmado', precio:2600, rec:false, nota:'Sesión 3 de 4' });
+  agregarTurno({ fecha:habil(3), hora:'18:00', dur:60, cli:'c5', serv:'s6', prof:'p2', estado:'pendiente', precio:1700, rec:false, nota:'Sesión 7 de 10' });
+  agregarTurno({ fecha:habil(2), hora:'18:00', dur:45, cli:'c9', serv:'s3', prof:'p1', estado:'confirmado', precio:2600, rec:false, nota:'Sesión 3 de 4' });
 
   /* ---- HOY y MAÑANA (armados para que la demo se vea completa) ---- */
   const ahora = ahoraMin();
@@ -1755,7 +1757,7 @@ RENDER.panel = function(){
     <div class="kpi"><div class="kpi-l">${ico('dinero')} Cobrado hoy</div><div class="kpi-v">${pesos(movHoy.reduce((s, m) => s + m.monto, 0))}</div>
       <div class="kpi-d">${movHoy.length} ${movHoy.length === 1 ? 'cobro' : 'cobros'}</div></div>
     <div class="kpi"><div class="kpi-l">${ico('finanzas')} Cobrado en el mes</div><div class="kpi-v">${pesos(cobradoMes)}</div>
-      <div class="kpi-d">${antTramo ? `<span class="${varMes >= 0 ? 'pos' : 'neg'}">${varMes >= 0 ? '▲' : '▼'} ${Math.abs(varMes)} %</span> vs. el mismo día del mes pasado` : MESES[aFecha(h).getMonth()]}</div></div>
+      <div class="kpi-d">${antTramo && Math.abs(varMes) < 1 ? 'Igual que a esta altura del mes pasado' : antTramo ? `<span class="${varMes >= 0 ? 'pos' : 'neg'}">${varMes >= 0 ? '▲' : '▼'} ${Math.abs(varMes)} %</span> vs. el mismo día del mes pasado` : MESES[aFecha(h).getMonth()]}</div></div>
     <div class="kpi ${bajos.length ? 'alerta' : ''}" style="cursor:pointer" onclick="STK.soloBajo=true; ir('stock')"><div class="kpi-l">${ico('stock')} Stock bajo</div><div class="kpi-v">${bajos.length}</div>
       <div class="kpi-d">${bajos.filter(p => p.tipo === 'venta').length} de venta · ${bajos.filter(p => p.tipo === 'insumo').length} insumos</div></div>
   </div>`;
@@ -1932,7 +1934,7 @@ function rangoHoras(ts){
 function columnaHoras(ini, fin){
   let h = '';
   for (let m = ini; m <= fin; m += 60) h += `<div class="ag-hora" style="top:${(m - ini) * PPM}px">${hhmm(m)}</div>`;
-  return `<div class="ag-horas" style="height:${(fin - ini) * PPM}px"><div style="height:10px"></div>${h}</div>`;
+  return `<div class="ag-horas" style="height:${(fin - ini) * PPM}px">${h}</div>`;
 }
 function lineasHoras(ini, fin){
   let h = '';
